@@ -177,7 +177,7 @@ class Bra_Custom_Register_Login {
         $this->loader->add_filter( 'authenticate', $plugin_public, 'redirect_at_authenticate', 102, 3 );
         $this->loader->add_filter( 'login_redirect', $plugin_public, 'redirect_after_login', 102, 3 );
 
-        add_shortcode( 'custom-login-form', array( $plugin_public, 'render_login_form' ) );
+        add_shortcode( 'bra-login-form', array( $plugin_public, 'render_login_form' ) );
 	}
 
 	/**

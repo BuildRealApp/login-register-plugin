@@ -41,7 +41,7 @@ class Bra_Custom_Register_Login_Activator {
         $page_definitions = array(
             'member-login' => array(
                 'title' => __( 'Sign In', 'bra-login' ),
-                'content' => '[custom-login-form]'
+                'content' => '[bra-login-form]'
             ),
             'member-account' => array(
                 'title' => __( 'Your Profile', 'bra-login' ),
@@ -69,5 +69,5 @@ class Bra_Custom_Register_Login_Activator {
         }
     }
 
-    
+
 }
