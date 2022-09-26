@@ -172,7 +172,12 @@ class Bra_Custom_Register_Login {
 
 		$this->loader->add_action( 'wp_enqueue_scripts', $plugin_public, 'enqueue_styles' );
 		$this->loader->add_action( 'wp_enqueue_scripts', $plugin_public, 'enqueue_scripts' );
+        $this->loader->add_action( 'wp_logout', $plugin_public, 'redirect_after_logout' );
 
+        $this->loader->add_filter( 'authenticate', $plugin_public, 'redirect_at_authenticate', 102, 3 );
+        $this->loader->add_filter( 'login_redirect', $plugin_public, 'redirect_after_login', 102, 3 );
+
+        add_shortcode( 'custom-login-form', array( $plugin_public, 'render_login_form' ) );
 	}
 
 	/**
