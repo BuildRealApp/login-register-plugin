@@ -1,6 +1,16 @@
 <div class="container">
     <div class="row">
         <div class="col-12">
+            <?php if ( $attributes['registered'] ) : ?>
+                <p class="login-info">
+                    <?php
+                    printf(
+                        __( 'You have successfully registered to <strong>%s</strong>. We have emailed your password to the email address you entered.', 'bra-login' ),
+                        get_bloginfo( 'name' )
+                    );
+                    ?>
+                </p>
+            <?php endif; ?>
             <!-- Show logged out message if user just logged out -->
             <?php if ( $attributes['logged_out'] ) : ?>
                 <p class="login-info">

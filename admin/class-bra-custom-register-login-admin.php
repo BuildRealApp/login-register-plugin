@@ -100,4 +100,37 @@ class Bra_Custom_Register_Login_Admin {
 
 	}
 
+    /**
+     * Registers the settings fields needed by the plugin.
+     */
+    public function register_settings_fields() {
+        // For simplicity, create settings fields for the two keys used by reCAPTCHA
+        register_setting( 'general', 'bra-login-recaptcha-site-key' );
+        register_setting( 'general', 'bra-login-recaptcha-secret-key' );
+
+        add_settings_field(
+            'bra-login-recaptcha-site-key',
+            '<label for="bra-login-recaptcha-site-key">' . __( 'reCAPTCHA site key' , 'bra-login' ) . '</label>',
+            array( $this, 'render_recaptcha_site_key_field' ),
+            'general'
+        );
+
+        add_settings_field(
+            'bra-login-recaptcha-secret-key',
+            '<label for="bra-login-recaptcha-secret-key">' . __( 'reCAPTCHA secret key' , 'bra-login' ) . '</label>',
+            array( $this, 'render_recaptcha_secret_key_field' ),
+            'general'
+        );
+    }
+
+    public function render_recaptcha_site_key_field() {
+        $value = get_option( 'bra-login-recaptcha-site-key', '' );
+        echo '<input type="text" id="bra-login-recaptcha-site-key" name="bra-login-recaptcha-site-key" value="' . esc_attr( $value ) . '" />';
+    }
+
+    public function render_recaptcha_secret_key_field() {
+        $value = get_option( 'bra-login-recaptcha-secret-key', '' );
+        echo '<input type="text" id="bra-login-recaptcha-secret-key" name="bra-login-recaptcha-secret-key" value="' . esc_attr( $value ) . '" />';
+    }
+
 }
