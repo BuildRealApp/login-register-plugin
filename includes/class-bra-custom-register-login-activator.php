@@ -47,6 +47,10 @@ class Bra_Custom_Register_Login_Activator {
                 'title' => __( 'Your Profile', 'bra-login' ),
                 'content' => '[my-profile]'
             ),
+            'member-register' => array(
+                'title' => __( 'Register', 'bra-login' ),
+                'content' => '[register-form]'
+            ),
         );
 
         foreach ( $page_definitions as $slug => $page ) {

@@ -115,6 +115,8 @@ class Bra_Custom_Register_Login_Public {
         $default_attributes = array( 'show_title' => false );
         $attributes = shortcode_atts( $default_attributes, $attributes );
 
+        $attributes['registered'] = isset( $_REQUEST['registered'] );
+
         if ( is_user_logged_in() ) {
             return __( 'You are already signed in.', 'bra-login' );
         }
@@ -253,13 +255,23 @@ class Bra_Custom_Register_Login_Public {
                     'bra-login'
                 );
 
+            case 'email':
+                return __( 'The email address you entered is not valid.', 'bra-login' );
+
+            case 'email_exists':
+                return __( 'An account exists with this email address.', 'bra-login' );
+
+            case 'closed':
+                return __( 'Registering new users is currently not allowed.', 'bra-login' );
+
             case 'incorrect_password':
                 $err = __(
                     "The password you entered wasn't quite right. <a href='%s'>Did you forget your password</a>?",
                     'bra-login'
                 );
                 return sprintf( $err, wp_lostpassword_url() );
-
+            case 'captcha':
+                return __( 'The Google reCAPTCHA check failed. Are you a robot?', 'bra-login' );
             default:
                 break;
         }
@@ -306,4 +318,172 @@ class Bra_Custom_Register_Login_Public {
 
         return wp_validate_redirect( $redirect_url, home_url() );
     }
+
+    /**
+     * A shortcode for rendering the new user registration form.
+     *
+     * @param  array   $attributes  Shortcode attributes.
+     * @param  string  $content     The text content for shortcode. Not used.
+     *
+     * @return string  The shortcode output
+     */
+    public function render_register_form( $attributes, $content = null ) {
+        // Parse shortcode attributes
+        $default_attributes = array( 'show_title' => false );
+        $attributes = shortcode_atts( $default_attributes, $attributes );
+
+        if ( is_user_logged_in() ) {
+            return __( 'You are already signed in.', 'bra-login' );
+        } elseif ( ! get_option( 'users_can_register' ) ) {
+            return __( 'Registering new users is currently not allowed.', 'bra-login' );
+        } else {
+            // Retrieve possible errors from request parameters
+            $attributes['errors'] = array();
+            if ( isset( $_REQUEST['register-errors'] ) ) {
+                $error_codes = explode( ',', $_REQUEST['register-errors'] );
+
+                foreach ( $error_codes as $error_code ) {
+                    $attributes['errors'] []= $this->get_error_message( $error_code );
+                }
+            }
+            $attributes['recaptcha_site_key'] = get_option( 'bra-login-recaptcha-site-key', null );
+            return $this->get_view( 'register_form', $attributes );
+        }
+    }
+
+    /** * Redirects the user to the custom registration page instead * of wp-login.php?action=register. */
+    public function redirect_to_custom_register()
+    {
+        if ('GET' == $_SERVER['REQUEST_METHOD']) {
+            if (is_user_logged_in()) {
+                $this->redirect_logged_in_user();
+            } else {
+                wp_redirect(home_url('member-register'));
+            }
+            exit;
+        }
+    }
+
+    /**
+     * Validates and then completes the new user signup process if all went well.
+     *
+     * @param string $email         The new user's email address
+     * @param string $first_name    The new user's first name
+     * @param string $last_name     The new user's last name
+     *
+     * @return int|WP_Error         The id of the user that was created, or error if failed.
+     */
+    private function register_user( $email, $first_name, $last_name ) {
+        $errors = new WP_Error();
+
+        // Email address is used as both username and email. It is also the only
+        if ( ! is_email( $email ) ) {
+            $errors->add( 'email', $this->get_error_message( 'email' ) );
+            return $errors;
+        }
+
+        if ( username_exists( $email ) || email_exists( $email ) ) {
+            $errors->add( 'email_exists', $this->get_error_message( 'email_exists') );
+            return $errors;
+        }
+
+        // Generate the password so that the subscriber will have to check email...
+        $password = wp_generate_password( 12, false );
+
+        $user_data = array(
+            'user_login'    => $email,
+            'user_email'    => $email,
+            'user_pass'     => $password,
+            'first_name'    => $first_name,
+            'last_name'     => $last_name,
+            'nickname'      => $first_name,
+        );
+
+        $user_id = wp_insert_user( $user_data );
+        wp_new_user_notification( $user_id, $password );
+
+        return $user_id;
+    }
+
+    /**
+     * An action function used to include the reCAPTCHA JavaScript file
+     * at the end of the page.
+     */
+    public function add_captcha_js_to_footer() {
+        echo "<script src='https://www.google.com/recaptcha/api.js'></script>";
+    }
+
+    /**
+     * Checks that the reCAPTCHA parameter sent with the registration
+     * request is valid.
+     *
+     * @return bool True if the CAPTCHA is OK, otherwise false.
+     */
+    private function verify_recaptcha() {
+        // This field is set by the recaptcha widget if check is successful
+        if ( isset ( $_POST['g-recaptcha-response'] ) ) {
+            $captcha_response = $_POST['g-recaptcha-response'];
+        } else {
+            return false;
+        }
+
+        // Verify the captcha response from Google
+        $response = wp_remote_post(
+            'https://www.google.com/recaptcha/api/siteverify',
+            array(
+                'body' => array(
+                    'secret' => get_option( 'bra-login-recaptcha-secret-key' ),
+                    'response' => $captcha_response
+                )
+            )
+        );
+
+        $success = false;
+        if ( $response && is_array( $response ) ) {
+            $decoded_response = json_decode( $response['body'] );
+            $success = $decoded_response->success;
+        }
+
+        return $success;
+    }
+
+    /**
+     * Handles the registration of a new user.
+     *
+     * Used through the action hook "login_form_register" activated on wp-login.php
+     * when accessed through the registration action.
+     */
+    public function do_register_user() {
+        if ( 'POST' == $_SERVER['REQUEST_METHOD'] ) {
+            $redirect_url = home_url( 'member-register' );
+
+            if ( ! get_option( 'users_can_register' ) ) {
+                // Registration closed, display error
+                $redirect_url = add_query_arg( 'register-errors', 'closed', $redirect_url );
+            } elseif ( ! $this->verify_recaptcha() ) {
+                // Recaptcha check failed, display error
+                $redirect_url = add_query_arg( 'register-errors', 'captcha', $redirect_url );
+            } else {
+                $email = $_POST['email'];
+                $first_name = sanitize_text_field( $_POST['first_name'] );
+                $last_name = sanitize_text_field( $_POST['last_name'] );
+
+                $result = $this->register_user( $email, $first_name, $last_name );
+
+                if ( is_wp_error( $result ) ) {
+                    // Parse errors into a string and append as parameter to redirect
+                    $errors = join( ',', $result->get_error_codes() );
+                    $redirect_url = add_query_arg( 'register-errors', $errors, $redirect_url );
+                } else {
+                    // Success, redirect to login page.
+                    $redirect_url = home_url( 'member-login' );
+                    $redirect_url = add_query_arg( 'registered', $email, $redirect_url );
+                }
+            }
+
+            wp_redirect( $redirect_url );
+            exit;
+        }
+    }
+
 }
