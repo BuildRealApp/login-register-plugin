@@ -139,6 +139,13 @@ class Bra_Custom_Register_Login_Public {
         $attributes['errors'] = $errors;
         // Check if user just logged out
         $attributes['logged_out'] = isset( $_REQUEST['logged_out'] ) && $_REQUEST['logged_out'] == true;
+
+        // Check if the user just requested a new password
+        $attributes['lost_password_sent'] = isset( $_REQUEST['email_sent'] ) && $_REQUEST['email_sent'] == 'confirm';
+
+        // Check if user just updated password
+        $attributes['password_updated'] = isset( $_REQUEST['password'] ) && $_REQUEST['password'] == 'changed';
+
         // Render the login form using an external view
         return $this->get_view( 'login_form', $attributes );
     }
@@ -249,6 +256,7 @@ class Bra_Custom_Register_Login_Public {
             case 'empty_password':
                 return __( 'You need to enter a password to login.', 'bra-login' );
 
+            case 'invalidcombo':
             case 'invalid_email':
                 return __(
                     "We don't have any users with that email address. Maybe you used a different one when signing up?",
@@ -272,6 +280,7 @@ class Bra_Custom_Register_Login_Public {
                 return sprintf( $err, wp_lostpassword_url() );
             case 'captcha':
                 return __( 'The Google reCAPTCHA check failed. Are you a robot?', 'bra-login' );
+
             default:
                 break;
         }
@@ -486,4 +495,211 @@ class Bra_Custom_Register_Login_Public {
         }
     }
 
+    /**
+     * Redirects the user to the custom "Forgot your password?" page instead of
+     * wp-login.php?action=lostpassword.
+     */
+    public function redirect_to_custom_lostpassword() {
+        if ( 'GET' == $_SERVER['REQUEST_METHOD'] ) {
+            if ( is_user_logged_in() ) {
+                $this->redirect_logged_in_user();
+                exit;
+            }
+
+            wp_redirect( home_url( 'member-password-lost' ) );
+            exit;
+        }
+    }
+
+    /**
+     * A shortcode for rendering the form used to initiate the password reset.
+     *
+     * @param  array   $attributes  Shortcode attributes.
+     * @param  string  $content     The text content for shortcode. Not used.
+     *
+     * @return string  The shortcode output
+     */
+    public function render_password_lost_form( $attributes, $content = null ) {
+        // Parse shortcode attributes
+        $default_attributes = array( 'show_title' => false );
+        $attributes = shortcode_atts( $default_attributes, $attributes );
+
+        if ( is_user_logged_in() ) {
+            return __( 'You are already signed in.', 'bra-login' );
+        } else {
+            // Retrieve possible errors from request parameters
+            $attributes['errors'] = array();
+            if ( isset( $_REQUEST['errors'] ) ) {
+                $error_codes = explode( ',', $_REQUEST['errors'] );
+
+                foreach ( $error_codes as $error_code ) {
+                    $attributes['errors'] []= $this->get_error_message( $error_code );
+                }
+            }
+            return $this->get_view( 'password_lost_form', $attributes );
+        }
+    }
+
+    /**
+     * Initiates password reset.
+     */
+    public function do_password_lost() {
+        if ( 'POST' == $_SERVER['REQUEST_METHOD'] ) {
+            $errors = retrieve_password();
+            if ( is_wp_error( $errors ) ) {
+                // Errors found
+                $redirect_url = home_url( 'member-password-lost' );
+                $redirect_url = add_query_arg( 'errors', join( ',', $errors->get_error_codes() ), $redirect_url );
+            } else {
+                // Email sent
+                $redirect_url = home_url( 'member-login' );
+                $redirect_url = add_query_arg( 'email_sent', 'confirm', $redirect_url );
+            }
+
+            wp_redirect( $redirect_url );
+            exit;
+        }
+    }
+
+    /**
+     * Modify and return message that will be send in email.
+     * Called through the retrieve_password_message filter.
+     *
+     * @param string  $message    Default mail message.
+     * @param string  $key        The activation key.
+     * @param string  $user_login The username for the user.
+     * @param WP_User $user_data  WP_User object.
+     *
+     * @return string   The mail message to send.
+     */
+    public function replace_retrieve_password_message( $message, $key, $user_login, $user_data ) {
+        // Create new message
+        $msg  = __( 'Hello!', 'bra-login' ) . "\r\n\r\n";
+        $msg .= sprintf( __( 'You asked us to reset your password for your account using the email address %s.', 'bra-login' ), $user_login ) . "\r\n\r\n";
+        $msg .= __( "If this was a mistake, or you didn't ask for a password reset, just ignore this email and nothing will happen.", 'bra-login' ) . "\r\n\r\n";
+        $msg .= __( 'To reset your password, visit the following address:', 'bra-login' ) . "\r\n\r\n";
+        $msg .= site_url( "wp-login.php?action=rp&key=$key&login=" . rawurlencode( $user_login ), 'login' ) . "\r\n\r\n";
+        $msg .= __( 'Thanks!', 'bra-login' ) . "\r\n";
+
+        return $msg;
+    }
+
+    /**
+     * Redirects to the custom password reset page, or the login page
+     * if there are errors.
+     */
+    public function redirect_to_custom_password_reset() {
+        if ( 'GET' == $_SERVER['REQUEST_METHOD'] ) {
+            // Verify key / login combo
+            $user = check_password_reset_key( $_REQUEST['key'], $_REQUEST['login'] );
+            if ( ! $user || is_wp_error( $user ) ) {
+                if ( $user && $user->get_error_code() === 'expired_key' ) {
+                    wp_redirect( home_url( 'member-login?login=expiredkey' ) );
+                } else {
+                    wp_redirect( home_url( 'member-login?login=invalidkey' ) );
+                }
+                exit;
+            }
+
+            $redirect_url = home_url( 'member-password-reset' );
+            $redirect_url = add_query_arg( 'login', esc_attr( $_REQUEST['login'] ), $redirect_url );
+            $redirect_url = add_query_arg( 'key', esc_attr( $_REQUEST['key'] ), $redirect_url );
+
+            wp_redirect( $redirect_url );
+            exit;
+        }
+    }
+
+    /**
+     * A shortcode for rendering the form used to reset a user's password.
+     *
+     * @param  array   $attributes  Shortcode attributes.
+     * @param  string  $content     The text content for shortcode. Not used.
+     *
+     * @return string  The shortcode output
+     */
+    public function render_password_reset_form( $attributes, $content = null ) {
+        // Parse shortcode attributes
+        $default_attributes = array( 'show_title' => false );
+        $attributes = shortcode_atts( $default_attributes, $attributes );
+
+        if ( is_user_logged_in() ) {
+            return __( 'You are already signed in.', 'bra-login' );
+        } else {
+            if ( isset( $_REQUEST['login'] ) && isset( $_REQUEST['key'] ) ) {
+                $attributes['login'] = $_REQUEST['login'];
+                $attributes['key'] = $_REQUEST['key'];
+
+                // Error messages
+                $errors = array();
+                if ( isset( $_REQUEST['error'] ) ) {
+                    $error_codes = explode( ',', $_REQUEST['error'] );
+
+                    foreach ( $error_codes as $code ) {
+                        $errors []= $this->get_error_message( $code );
+                    }
+                }
+                $attributes['errors'] = $errors;
+
+                return $this->get_view( 'password_reset_form', $attributes );
+            } else {
+                return __( 'Invalid password reset link.', 'bra-login' );
+            }
+        }
+    }
+
+    /**
+     * Resets the user's password if the password reset form was submitted.
+     */
+    public function do_password_reset() {
+        if ( 'POST' == $_SERVER['REQUEST_METHOD'] ) {
+            $rp_key = $_REQUEST['rp_key'];
+            $rp_login = $_REQUEST['rp_login'];
+
+            $user = check_password_reset_key( $rp_key, $rp_login );
+
+            if ( ! $user || is_wp_error( $user ) ) {
+                if ( $user && $user->get_error_code() === 'expired_key' ) {
+                    wp_redirect( home_url( 'member-login?login=expiredkey' ) );
+                } else {
+                    wp_redirect( home_url( 'member-login?login=invalidkey' ) );
+                }
+                exit;
+            }
+
+            if ( isset( $_POST['pass1'] ) ) {
+                if ( $_POST['pass1'] != $_POST['pass2'] ) {
+                    // Passwords don't match
+                    $redirect_url = home_url( 'member-password-reset' );
+
+                    $redirect_url = add_query_arg( 'key', $rp_key, $redirect_url );
+                    $redirect_url = add_query_arg( 'login', $rp_login, $redirect_url );
+                $redirect_url = add_query_arg( 'error', 'password_reset_mismatch', $redirect_url );
+
+                wp_redirect( $redirect_url );
+                exit;
+            }
+
+                if ( empty( $_POST['pass1'] ) ) {
+                    // Password is empty
+                    $redirect_url = home_url( 'member-password-reset' );
+
+                    $redirect_url = add_query_arg( 'key', $rp_key, $redirect_url );
+                    $redirect_url = add_query_arg( 'login', $rp_login, $redirect_url );
+                    $redirect_url = add_query_arg( 'error', 'password_reset_empty', $redirect_url );
+
+                    wp_redirect( $redirect_url );
+                    exit;
+                }
+
+                // Parameter checks OK, reset password
+                reset_password( $user, $_POST['pass1'] );
+                wp_redirect( home_url( 'member-login?password=changed' ) );
+            } else {
+                echo "Invalid request.";
+            }
+
+            exit;
+        }
+    }
 }

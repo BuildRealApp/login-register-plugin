@@ -51,6 +51,14 @@ class Bra_Custom_Register_Login_Activator {
                 'title' => __( 'Register', 'bra-login' ),
                 'content' => '[register-form]'
             ),
+            'member-password-lost' => array(
+                'title' => __( 'Forgot Your Password?', 'bra-login' ),
+                'content' => '[custom-password-lost-form]'
+            ),
+            'member-password-reset' => array(
+                'title' => __( 'Pick a New Password', 'bra-login' ),
+                'content' => '[custom-password-reset-form]'
+            )
         );
 
         foreach ( $page_definitions as $slug => $page ) {

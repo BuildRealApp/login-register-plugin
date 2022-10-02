@@ -176,11 +176,21 @@ class Bra_Custom_Register_Login {
         $this->loader->add_action( 'login_form_register', $plugin_public, 'redirect_to_custom_register' );
         $this->loader->add_action( 'login_form_register', $plugin_public, 'do_register_user' );
         $this->loader->add_action( 'wp_print_footer_scripts', $plugin_public, 'add_captcha_js_to_footer' );
+        $this->loader->add_action( 'login_form_lostpassword', $plugin_public, 'redirect_to_custom_lostpassword' );
+        $this->loader->add_action( 'login_form_lostpassword', $plugin_public, 'do_password_lost');
+        $this->loader->add_action( 'login_form_rp', $plugin_public,'redirect_to_custom_password_reset' );
+        $this->loader->add_action( 'login_form_resetpass', $plugin_public, 'redirect_to_custom_password_reset' );
+        $this->loader->add_action( 'login_form_rp', $plugin_public, 'do_password_reset' );
+        $this->loader->add_action( 'login_form_resetpass', $plugin_public, 'do_password_reset' );
+
         $this->loader->add_filter( 'authenticate', $plugin_public, 'redirect_at_authenticate', 102, 3 );
         $this->loader->add_filter( 'login_redirect', $plugin_public, 'redirect_after_login', 102, 3 );
-
+        $this->loader->add_filter( 'retrieve_password_message', $plugin_public, 'replace_retrieve_password_message', 10, 4 );
+        add_action( 'login_form_lostpassword', array( $this, 'redirect_to_custom_lostpassword' ) );
         add_shortcode( 'bra-login-form', array( $plugin_public, 'render_login_form' ) );
         add_shortcode( 'register-form', array( $plugin_public, 'render_register_form' ) );
+        add_shortcode( 'custom-password-lost-form', array( $plugin_public, 'render_password_lost_form' ) );
+        add_shortcode( 'custom-password-reset-form', array( $this, 'render_password_reset_form' ) );
 	}
 
 	/**
