@@ -1,6 +1,16 @@
 <div class="container">
     <div class="row">
         <div class="col-12">
+            <?php if ( $attributes['password_updated'] ) : ?>
+                <p class="login-info">
+                    <?php _e( 'Your password has been changed. You can sign in now.', 'bra-login' ); ?>
+                </p>
+            <?php endif; ?>
+            <?php if ( $attributes['lost_password_sent'] ) : ?>
+                <p class="login-info">
+                    <?php _e( 'Check your email for a link to reset your password.', 'bra-login' ); ?>
+                </p>
+            <?php endif; ?>
             <?php if ( $attributes['registered'] ) : ?>
                 <p class="login-info">
                     <?php
